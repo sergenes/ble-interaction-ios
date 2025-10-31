@@ -10,6 +10,29 @@ This repository contains two SwiftUI apps that demonstrate Bluetooth Low Energy 
 - PeripheralQ (macOS): acts as a Peripheral – advertises and responds to simple text commands.
 
 Developed and tested with: Xcode 26, iOS 26, macOS 26.
+## ScannerQ Screenshots
+
+<table>
+  <tr>
+    <td>Discovery</td>
+    <td>Details</td>
+  </tr>
+  <tr>
+    <td><img src="docs/ios_discovery.png" width=270 height=555></td>
+    <td><img src="docs/ios_details.png" width=270 height=555></td>
+  </tr>
+ </table>
+
+## PeripheralQ Screenshots
+
+<table>
+  <tr>
+    <td>PeripheralQ</td>
+  </tr>
+  <tr>
+    <td><img src="docs/macos_peripheral.png" width=800 height=500></td>
+  </tr>
+ </table>
 
 
 ## 1) Architecture and Approach
@@ -190,31 +213,6 @@ Code references
 - PeripheralQ (macOS Peripheral)
   - `MacHostPeripheral.swift`: advertising/services implementation.
   - `PeripheralView.swift`: minimal UI surface.
-
-
-## ScannerQ Screenshots 
-
-<table>
-  <tr>
-    <td>Discovery</td>
-    <td>Details</td>
-  </tr>
-  <tr>
-    <td><img src="docs/ios_discovery.png" width=270 height=555></td>
-    <td><img src="docs/ios_details.png" width=270 height=555></td>
-  </tr>
- </table>
-
-## PeripheralQ Screenshots
-
-<table>
-  <tr>
-    <td>PeripheralQ</td>
-  </tr>
-  <tr>
-    <td><img src="docs/macos_peripheral.png" width=800 height=500></td>
-  </tr>
- </table>
 
 ## 📞 Contact
 - **[Sergey N](https://www.linkedin.com/in/sergey-neskoromny/)**
