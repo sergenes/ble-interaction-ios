@@ -186,12 +186,10 @@ Code references
 <table>
   <tr>
     <td>Discovery</td>
-    <td></td>
     <td>Details</td>
   </tr>
   <tr>
     <td><img src="docs/ios_discovery.png" width=270 height=555></td>
-    <td></td>
     <td><img src="docs/ios_details.png" width=270 height=555></td>
   </tr>
  </table>
