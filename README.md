@@ -102,6 +102,65 @@ Troubleshooting
   - Go to iOS Settings > Privacy & Security > Bluetooth and enable access for the app.
 
 
+## 4) Connect & I/O sequence
+
+The diagram below shows the typical end-to-end flow from discovery to text I/O between the iOS central (ScannerQ) and the macOS peripheral (PeripheralQ).
+
+```mermaid
+sequenceDiagram
+    participant iOS as ScannerQ (iOS Central)
+    participant macOS as PeripheralQ (macOS Peripheral)
+    participant CB as CoreBluetooth
+
+    iOS->>CB: CBCentralManager.scanForPeripherals(allowDuplicates=true)
+    CB-->>iOS: didDiscover(peripheral, advertisementData, RSSI)
+    iOS->>CB: stopScan(); connect(peripheral)
+    CB-->>iOS: didConnect(peripheral)
+
+    iOS->>CB: discoverServices([NUS])
+    CB-->>iOS: didDiscoverServices([NUS])
+
+    iOS->>CB: discoverCharacteristics([RX, TX], for: NUS)
+    CB-->>iOS: didDiscoverCharacteristicsFor(NUS: RX write, TX notify)
+
+    iOS->>CB: setNotifyValue(true, for: TX)
+    CB-->>iOS: didUpdateNotificationState(TX, isNotifying=true)
+
+    iOS->>CB: writeValue("Hello", to: RX, .withoutResponse)
+    macOS-->>CB: didWrite(to: RX) → app handles text
+    macOS-->>CB: updateValue("Hello ack", on: TX)
+    CB-->>iOS: didUpdateValueFor(TX, data)
+    iOS-->>iOS: Parse and display in Details screen
+
+    note over iOS,macOS: On errors/timeouts, show error and optionally retry/backoff
+    iOS->>CB: cancelPeripheralConnection(peripheral) (when leaving)
+    CB-->>iOS: didDisconnectPeripheral(error?)
+```
+
+Key notes
+- RX is the characteristic the central writes to (Peripheral receives data).
+- TX is the characteristic the central subscribes to (Peripheral notifies data).
+- The sample uses Write Without Response for throughput and TX notifications for inbound data.
+- Preferred service is Nordic UART Service (NUS) to keep the demo simple and familiar.
+
+## Known GATT service and characteristic UUIDs
+
+These values are defined in `CommonLibrary/BluetoothProtocolSpec.swift` and used by both apps.
+
+- Service: Nordic UART Service (NUS)
+  - UUID: `6E400001-B5A3-F393-E0A9-E50E24DCCA9E`
+- Characteristic: NUS RX (central writes → peripheral receives)
+  - UUID: `6E400002-B5A3-F393-E0A9-E50E24DCCA9E`
+  - Properties (Peripheral side): Write, Write Without Response
+- Characteristic: NUS TX (peripheral notifies → central receives)
+  - UUID: `6E400003-B5A3-F393-E0A9-E50E24DCCA9E`
+  - Properties (Peripheral side): Notify
+
+Code references
+- `Gatt.Service.nusServiceUUID`
+- `Gatt.Characteristic.nusRXUUID`
+- `Gatt.Characteristic.nusTXUUID`
+
 ## Repository Highlights
 - CommonLibrary
   - `Sources/CommonLibrary/BluetoothDevice.swift`: value type representing discovered peripherals.
