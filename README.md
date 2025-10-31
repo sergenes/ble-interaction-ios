@@ -88,8 +88,11 @@ B) Run the iOS Scanner (ScannerQ)
 5. Choose an iPhone device (physical device recommended for real BLE discovery).
 6. Run the app.
 7. Grant Bluetooth permission when prompted.
-8. Wait for the device list to populate. If both `QDevice1` and your Mac's name appear, select the entry with the Mac's public name to connect successfully.
-9. Open the details/interaction screen and send a sample text message.
+8. Wait for the device list to populate. If both QDevice1 and your Mac's name appear, select the entry with your Mac's public name to connect successfully.
+9. The app will navigate to the details/interaction screen, attempt to connect automatically, and exchange handshake hello messages with the simulator.
+10. You can send sample text messages in both directions.
+11. Select an image in the simulator (PNG files around 1K in size work best), then press the "Get Image" button on the iPhone.
+12. Toggle the switch on the iPhone, send it, and observe the remote toggle change state on the Mac.
 
 Troubleshooting
 - If no devices appear:
