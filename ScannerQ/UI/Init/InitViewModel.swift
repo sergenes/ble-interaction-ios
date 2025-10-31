@@ -18,41 +18,32 @@ final class InitViewModel: ObservableObject {
         lastDeviceId: String?,
         lastServiceUUID: String?,
         deps: AppDependencies,
-        discoveryViewModel: DiscoveryViewModel,
-        detailsViewModel: DetailsViewModel,
-        navigationViewModel: NavigationViewModel,
-        hideSplash: @escaping () -> Void
+        hideSplash: @escaping ([AppScreen]) -> Void
     ) {
         var didStartAuto = false
         if let idStr = lastDeviceId, let id = UUID(uuidString: idStr) {
-            // Attempt direct connect by identifier
-            detailsViewModel.selectedDeviceId = id
-            detailsViewModel.setup(repository: deps.repository)
-            detailsViewModel.onAppear()
+            // Path 1: Direct reconnect using saved device ID
+            deps.detailsViewModel.selectedDeviceId = id
+            deps.detailsViewModel.setup(repository: deps.repository)
+            deps.detailsViewModel.onAppear()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-                hideSplash()
-                // Ensure a proper root so Back goes to Discovery instead of an empty splash
-                navigationViewModel.path = NavigationPath()
-                navigationViewModel.navigateTo(.discover)
-                navigationViewModel.navigateTo(.details)
+                hideSplash([.discover, .details])
             }
             didStartAuto = true
         } else if let svcStr = lastServiceUUID, let svc = UUID(uuidString: svcStr) {
-            // Start scanning and watch for a device advertising this service
-            discoveryViewModel.setup(repository: deps.repository)
-            discoveryViewModel.onAppear()
+            // Path 2: Scan for device with matching service UUID
+            deps.discoveryViewModel.setup(repository: deps.repository)
+            deps.discoveryViewModel.onAppear()
             autoConnectCancellable = deps.repository.devicesPublisher
                 .sink { [weak self] devices in
                     guard let self = self else { return }
                     if let match = devices.first(where: { $0.preferredServiceUUID == svc && ($0.isConnectable ?? false) }) {
-                        discoveryViewModel.pauseScanning()
-                        detailsViewModel.selectedDevice = match
-                        detailsViewModel.setup(repository: deps.repository)
-                        hideSplash()
-                        // Establish Discovery as root, then push Details so Back returns to Discovery
-                        navigationViewModel.path = NavigationPath()
-                        navigationViewModel.navigateTo(.discover)
-                        navigationViewModel.navigateTo(.details)
+                        deps.discoveryViewModel.pauseScanning()
+                        deps.detailsViewModel.selectedDevice = match
+                        deps.detailsViewModel.setup(repository: deps.repository)
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            hideSplash([.discover, .details])
+                        }
                         self.autoConnectCancellable?.cancel(); self.autoConnectCancellable = nil
                     }
                 }
@@ -60,16 +51,15 @@ final class InitViewModel: ObservableObject {
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
                 guard let self = self else { return }
                 guard self.autoConnectCancellable != nil else { return }
-                hideSplash()
-                navigationViewModel.navigateTo(.discover)
+                hideSplash([.discover])
             }
             didStartAuto = true
         }
-        if didStartAuto == false {
+        // No preferences saved; show splash briefly then go to discovery
+        if !didStartAuto {
             // No prefs saved; show splash briefly then go to discovery
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                hideSplash()
-                navigationViewModel.navigateTo(.discover)
+                hideSplash([.discover])
             }
         }
     }

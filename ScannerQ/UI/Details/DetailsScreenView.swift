@@ -9,10 +9,18 @@ import SwiftUI
 import CommonLibrary
 
 struct DetailsScreenView: View {
-    @EnvironmentObject var viewModel: DetailsViewModel
     @EnvironmentObject var deps: AppDependencies
     @AppStorage(DetailsViewModel.prefsLastDeviceId) private var lastDeviceId: String = ""
     @AppStorage(DetailsViewModel.prefsLastServiceUUID) private var lastServiceUUID: String = ""
+    
+    private var viewModel: DetailsViewModel { deps.detailsViewModel }
+    private var toggleOnBinding: Binding<Bool> {
+        Binding(get: { viewModel.toggleOn }, set: { viewModel.toggleOn = $0 })
+    }
+    
+    private var inputTextBinding: Binding<String> {
+        Binding(get: { viewModel.inputText }, set: { viewModel.inputText = $0 })
+    }
     
     var body: some View {
         VStack(spacing: 0) {
@@ -127,7 +135,7 @@ struct DetailsScreenView: View {
     private var composer: some View {
         VStack(spacing: 8) {
             HStack {
-                Toggle(isOn: $viewModel.toggleOn) {
+                Toggle(isOn: toggleOnBinding) {
                     Text("ON/OFF")
                 }
                 .labelsHidden()
@@ -150,7 +158,7 @@ struct DetailsScreenView: View {
                     .disabled(!isConnected || viewModel.isImageDownloading)
             }
             HStack(spacing: 8) {
-                TextField("Type message…", text: $viewModel.inputText, axis: .vertical)
+                TextField("Type message…", text: inputTextBinding, axis: .vertical)
                     .textFieldStyle(.roundedBorder)
                 Button("Send") { viewModel.send() }
                     .buttonStyle(.borderedProminent)
@@ -177,10 +185,8 @@ struct DetailsScreenView: View {
 }
 
 #Preview {
-    var detailsViewModel = DetailsViewModel()
-    DetailsScreenView()
-        .onAppear {
-            detailsViewModel.selectedDevice = BluetoothDevice.previewStubs.first!
-        }
-        .environmentObject(detailsViewModel)
+    let deps = AppDependencies()
+    deps.detailsViewModel.selectedDevice = BluetoothDevice.previewStubs.first!
+    return DetailsScreenView()
+        .environmentObject(deps)
 }

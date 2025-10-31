@@ -14,33 +14,27 @@ enum AppScreen: Hashable {
     case details
 }
 
-class NavigationViewModel: ObservableObject {
-    @Published  var path = NavigationPath()
-    
-    func navigateTo(_ screen: AppScreen) {
-        path.append(screen)
-    }
-}
-
 struct SplashScreenView: View {
-    @EnvironmentObject var navigationViewModel: NavigationViewModel
     @EnvironmentObject var deps: AppDependencies
-    @EnvironmentObject var discoveryViewModel: DiscoveryViewModel
-    @EnvironmentObject var detailsViewModel: DetailsViewModel
     @State private var showSplash = true
+    @State var path = NavigationPath()
+    
     @StateObject private var initViewModel = InitViewModel()
     @AppStorage(DetailsViewModel.prefsLastDeviceId) private var lastDeviceId: String?
     @AppStorage(DetailsViewModel.prefsLastServiceUUID) private var lastServiceUUID: String?
     
     var body: some View {
-        NavigationStack(path: $navigationViewModel.path) {
+        NavigationStack(path: $path) {
             ZStack {
                 Text("No screen available")
-                    .foregroundColor(.gray)
+                    .padding(.bottom, 200)
+                    .foregroundColor(Color.blue)
                     .navigationDestination(for: AppScreen.self) { screen in
                         switch screen {
                         case .discover:
-                            DiscoveryScreenView()
+                            DiscoveryScreenView(onNavigateToDetails: {
+                                path.append(AppScreen.details)
+                            })
                         case .details:
                             DetailsScreenView()
                         }
@@ -54,10 +48,16 @@ struct SplashScreenView: View {
                                 lastDeviceId: lastDeviceId,
                                 lastServiceUUID: lastServiceUUID,
                                 deps: deps,
-                                discoveryViewModel: discoveryViewModel,
-                                detailsViewModel: detailsViewModel,
-                                navigationViewModel: navigationViewModel,
-                                hideSplash: { withAnimation { self.showSplash = false } }
+                                hideSplash: { destinations in
+                                    var newPath = NavigationPath()
+                                    for destination in destinations {
+                                        newPath.append(destination)
+                                    }
+                                    withAnimation {
+                                        self.showSplash = false
+                                        self.path = newPath
+                                    }
+                                }
                             )
                         }
                 }
@@ -83,13 +83,8 @@ struct SplashScreenView: View {
 }
 
 #Preview {
-    var viewModel = DiscoveryViewModel()
-    SplashScreenView()
-        .onAppear {
-            viewModel.onPreviewAppear()
-        }
-        .environmentObject(NavigationViewModel())
-        .environmentObject(viewModel)
-        .environmentObject(NavigationViewModel())
-        .environmentObject(DetailsViewModel())
+    let deps = AppDependencies()
+    deps.discoveryViewModel.onPreviewAppear()
+    return SplashScreenView()
+        .environmentObject(deps)
 }

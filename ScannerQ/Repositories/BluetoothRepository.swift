@@ -311,6 +311,10 @@ extension BluetoothRepository: CBCentralManagerDelegate {
         let isConnectable = (advertisementData[CBAdvertisementDataIsConnectable] as? NSNumber)?.boolValue
         // Prefer CoreBluetooth-provided advertised local name when available
         let advName = advertisementData[CBAdvertisementDataLocalNameKey] as? String
+        let manufacturerData = (advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data) ?? Data()
+        if !manufacturerData.isEmpty {
+            // Self.log.info("Manufacturer Data: \(manufacturerData.manufacturerSummary())")
+        }
         var entry = peripherals[peripheral.identifier] ?? PeripheralEntry(peripheral: peripheral, lastRSSI: nil, isConnectable: nil, lastLocalName: nil, preferredServiceUUID: nil)
         entry.lastRSSI = RSSI.intValue
         entry.isConnectable = isConnectable
