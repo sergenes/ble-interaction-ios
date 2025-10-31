@@ -1,4 +1,9 @@
 # BLE Interaction (iOS + macOS peer)
+[![iOS](https://img.shields.io/badge/iOS-blue?logo=apple&logoColor=white)](https://www.apple.com/ios/)
+[![macOS](https://img.shields.io/badge/macOS-black?logo=apple&logoColor=white)](https://www.apple.com/macos/)
+[![Swift](https://img.shields.io/badge/Swift-orange?logo=swift&logoColor=white)](https://swift.org/)
+[![Bluetooth](https://img.shields.io/badge/Bluetooth-BLE-0082FC?logo=bluetooth&logoColor=white)](https://www.bluetooth.com/)
+[![Combine](https://img.shields.io/badge/Framework-Combine-9932CC.svg)](https://developer.apple.com/documentation/combine)
 
 This repository contains two SwiftUI apps that demonstrate Bluetooth Low Energy (BLE) interaction using CoreBluetooth:
 - ScannerQ (iOS): acts as a Central – scans, discovers, connects, and exchanges simple text payloads.
@@ -17,9 +22,6 @@ Developed and tested with: Xcode 26, iOS 26, macOS 26.
   - CommonLibrary: shared types and small helpers (e.g., `BluetoothDevice`, protocol mappers, string utils).
   - ScannerQ: iOS app (Central role).
   - PeripheralQ: macOS app (Peripheral role), see `PeripheralQ/MacHostPeripheral.swift`.
-- CoreBluetooth roles
-  - iOS central scans for peripherals, filters/normalizes discovered devices, and manages connections.
-  - macOS peer advertises a service and accepts simple text commands.
 - Combine usage
   - ViewModels expose `@Published` state for device lists, selection, and connection status.
   - Repository emits discovery/connection updates via Combine publishers that ViewModels subscribe to.
@@ -32,12 +34,12 @@ Developed and tested with: Xcode 26, iOS 26, macOS 26.
 ## 2) Known Limitations and Potential Improvements
 
 - Duplicate advertising names / connection quirk (known issue)
-  - PeripheralQ currently advertises as both `QDevice1` and as the Mac's public name. Both appear in the iOS list.
-  - iOS app fails to connect to `QDevice1`, but successfully connects and interacts when the Mac's public name is selected.
+  - PeripheralQ currently advertises as both `QDevice1` and as the Mac's public name. Both appear in the iOS Discovered devices list.
+  - iOS app fails to connect to `QDevice1`, but successfully connects and interacts when the device with the Mac's public name is selected.
   - Workarounds: select the device entry that shows the Mac's public name.
 
 - Permissions and privacy prompts
-  - BLE requires Bluetooth permission (and sometimes Local Network on certain interactions). On first launch, iOS prompts appear; denial blocks functionality.
+  - BLE requires Bluetooth permission. On first launch, iOS prompts appear; denial blocks functionality.
   - Improvement: add a dedicated permissions screen with rationale and links to Settings if permission is denied.
 
 - Background behavior
@@ -49,7 +51,7 @@ Developed and tested with: Xcode 26, iOS 26, macOS 26.
   - Improvement: structured error types, exponential backoff retries, and user-facing toasts/alerts.
 
 - Data protocol and reliability
-  - Simple text messages only; no fragmentation/MTU management or acknowledgment protocol.
+  - Simple text messages only.
   - Improvement: define a small text/binary protocol with sequence IDs, ACK/NACK, and retry.
 
 - UI/UX polish
@@ -78,7 +80,7 @@ A) Run the macOS Peripheral (PeripheralQ)
 4. Under Signing, set the Team to your Apple Developer Team.
 5. Update the Bundle Identifier to a unique identifier (e.g., com.yourcompany.peripheralq).
 6. Choose "My Mac" as the run destination.
-7. Run. The app will start advertising. By design, you may see both `QDevice1` and your Mac's public name from the iOS app.
+7. Run. Click 'Start Hosting' to start advertising. You may see both `QDevice1` and your Mac's public name from the iOS app.
 
 B) Run the iOS Scanner (ScannerQ)
 1. In Xcode, select the `ScannerQ` scheme.
@@ -112,32 +114,34 @@ The diagram below shows the typical end-to-end flow from discovery to text I/O b
 ```mermaid
 sequenceDiagram
     participant iOS as ScannerQ (iOS Central)
-    participant macOS as PeripheralQ (macOS Peripheral)
     participant CB as CoreBluetooth
+    participant macOS as PeripheralQ (macOS Peripheral)
 
-    iOS->>CB: CBCentralManager.scanForPeripherals(allowDuplicates=true)
-    CB-->>iOS: didDiscover(peripheral, advertisementData, RSSI)
-    iOS->>CB: stopScan(); connect(peripheral)
-    CB-->>iOS: didConnect(peripheral)
+    iOS->>CB: scanForPeripherals(allowDuplicates=true)
+    CB->>iOS: didDiscover(peripheral, advertisementData, RSSI)
+    iOS->>CB: stopScan()<br/>connect(peripheral)
+    CB->>iOS: didConnect(peripheral)
 
     iOS->>CB: discoverServices([NUS])
-    CB-->>iOS: didDiscoverServices([NUS])
+    CB->>iOS: didDiscoverServices([NUS])
 
     iOS->>CB: discoverCharacteristics([RX, TX], for: NUS)
-    CB-->>iOS: didDiscoverCharacteristicsFor(NUS: RX write, TX notify)
+    CB->>iOS: didDiscoverCharacteristics<br/>(NUS: RX write, TX notify)
 
     iOS->>CB: setNotifyValue(true, for: TX)
-    CB-->>iOS: didUpdateNotificationState(TX, isNotifying=true)
+    CB->>iOS: didUpdateNotificationState(TX, isNotifying=true)
 
     iOS->>CB: writeValue("Hello", to: RX, .withoutResponse)
-    macOS-->>CB: didWrite(to: RX) → app handles text
-    macOS-->>CB: updateValue("Hello ack", on: TX)
-    CB-->>iOS: didUpdateValueFor(TX, data)
-    iOS-->>iOS: Parse and display in Details screen
+    CB->>macOS: didWrite(to: RX)
+    macOS->>macOS: app handles text
+    macOS->>CB: updateValue("Hello ack", on: TX)
+    CB->>iOS: didUpdateValueFor(TX, data)
+    iOS->>iOS: Parse and display in Details screen
 
-    note over iOS,macOS: On errors/timeouts, show error and optionally retry/backoff
-    iOS->>CB: cancelPeripheralConnection(peripheral) (when leaving)
-    CB-->>iOS: didDisconnectPeripheral(error?)
+    note over iOS,macOS: On errors/timeouts: show error, optionally retry/backoff
+
+    iOS->>CB: cancelPeripheralConnection(peripheral)
+    CB->>iOS: didDisconnectPeripheral(error?)
 ```
 
 Key notes
