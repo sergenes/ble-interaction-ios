@@ -9,9 +9,17 @@ import SwiftUI
 
 @main
 struct PeripheralQApp: App {
+    @StateObject private var vm = MacHostViewModel()
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(vm)
+        }
+        .commands {
+            CommandMenu("File") {
+                Button("Select Image…") { vm.selectImage() }
+                    .keyboardShortcut("o", modifiers: [.command])
+            }
         }
     }
 }
