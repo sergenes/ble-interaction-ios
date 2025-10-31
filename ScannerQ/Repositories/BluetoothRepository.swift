@@ -66,7 +66,7 @@ final class BluetoothRepository: NSObject {
             var lastLocalName: String?
             var preferredServiceUUID: UUID?
         }
-        private var peripherals: [UUID: PeripheralEntry] = [:]
+    private var peripherals: [UUID: PeripheralEntry] = [:]
     private var isScanning: Bool = false
     private var shouldScan: Bool = false
     

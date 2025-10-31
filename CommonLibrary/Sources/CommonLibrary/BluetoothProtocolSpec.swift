@@ -73,7 +73,6 @@ public struct DeviceDetail: Equatable {
         self.writeCharacteristic = writeCharacteristic
     }
 
-    // Temporary shim initializer to ease migration from the old layout
     // Allows constructing DeviceDetail with discrete fields; internally builds a BluetoothDevice.
     public init(id: UUID, name: String, rssi: Int?, isConnectable: Bool?, services: [UUID], notifyCharacteristic: UUID?, writeCharacteristic: UUID?, preferredServiceUUID: UUID? = nil) {
         self.device = BluetoothDevice(id: id, name: name, rssi: rssi, isConnectable: isConnectable, preferredServiceUUID: preferredServiceUUID)
@@ -96,6 +95,21 @@ public extension BluetoothConnectionState {
             return true
         default:
             return false
+        }
+    }
+}
+
+public enum BluetoothMappers {
+    @inlinable
+    public static func powerState(from cbState: CBManagerState) -> BluetoothPowerState {
+        switch cbState {
+        case .unknown: return .unknown
+        case .resetting: return .resetting
+        case .unsupported: return .unsupported
+        case .unauthorized: return .unauthorized
+        case .poweredOff: return .poweredOff
+        case .poweredOn: return .poweredOn
+        @unknown default: return .unknown
         }
     }
 }
