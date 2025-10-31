@@ -116,6 +116,17 @@ sequenceDiagram
     participant iOS as ScannerQ (iOS Central)
     participant CB as CoreBluetooth
     participant macOS as PeripheralQ (macOS Peripheral)
+    participant User as iOS User
+
+    macOS->>CB: startAdvertising([LocalName, ServiceUUID: NUS])
+    CB->>macOS: didStartAdvertising(success)
+
+    iOS->>CB: init CBCentralManager()
+    CB-->>iOS: authorization = notDetermined
+    iOS->>User: Present Bluetooth permission alert
+    User-->>iOS: Allow / Don't Allow
+    CB-->>iOS: authorizationDidChange(authorized | denied)
+    note over iOS: If denied, guide user to Settings > Privacy & Security > Bluetooth
 
     iOS->>CB: scanForPeripherals(allowDuplicates=true)
     CB->>iOS: didDiscover(peripheral, advertisementData, RSSI)
