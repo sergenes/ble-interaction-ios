@@ -34,37 +34,18 @@ extension BluetoothDevice {
 }
 
 extension Data {
-    func hexString(maxLen: Int) -> String {
-        let full = self.map { String(format: "%02X", $0) }.joined()
-        if full.count > maxLen {
-            let idx = full.index(full.startIndex, offsetBy: maxLen)
-            return String(full[..<idx]) + "…"
-        }
-        return full
+    var hex: String {
+        map { String(format: "%02x", $0) }.joined(separator: " ")
     }
     
     func manufacturerSummary() -> String {
         if self.count >= 2 {
             let id = UInt16(littleEndian: self.withUnsafeBytes { $0.load(as: UInt16.self) })
             let rest = self.dropFirst(2)
-            let hex = rest.hexString(maxLen: 24)
-            return String(format: "ID 0x%04X, %@", id, hex.isEmpty ? "no data" : hex)
+            let hex = rest.hex
+            return String(String(format: "ID 0x%04X, %@", id, hex.isEmpty ? "no data" : hex).prefix(30))
         } else {
-            return self.hexString(maxLen: 24)
+            return String(self.hex.prefix(30))
         }
     }
-    
-    func parseNameFromManufacturer() -> String? {
-       guard self.count >= 4 else { return nil }
-       let companyLE0 = self[0]
-       let companyLE1 = self[1]
-       // 0xFFFF little-endian marker for our private schema
-       guard companyLE0 == 0xFF && companyLE1 == 0xFF else { return nil }
-       let type = self[2]
-       guard type == 0x01 else { return nil }
-       let len = Int(self[3])
-       guard self.count >= 4 + len, len > 0 else { return nil }
-       let nameBytes = self.subdata(in: 4..<(4+len))
-       return String(data: nameBytes, encoding: .utf8)
-   }
 }

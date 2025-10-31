@@ -22,7 +22,7 @@ final class MacHostPeripheral: NSObject {
         case disconnected
     }
 
-    // Public observable state (consumed by ViewModel)
+    // Public observable state
     @Published private(set) var state: State = .idle
     @Published private(set) var inboundMessages: [String] = []
     @Published private(set) var remoteToggleOn: Bool = false
