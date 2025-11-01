@@ -61,3 +61,6 @@ fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
 /speach.txt
+/docs/speach.txt
+/docs/speech.md
+/docs/speech2.md
