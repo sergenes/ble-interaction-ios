@@ -90,8 +90,8 @@ Developed and tested with: Xcode 26, iOS 26, macOS 26.
   - Improvement: define a small text/binary protocol with sequence IDs, ACK/NACK, and retry.
 
 - UI/UX polish
-  - Minimal UI aimed at demonstration.
-  - Improvements: filter/search devices, badges for RSSI, connection state indicators, and clearer empty/error states.
+  - The UI is minimal and intended for demonstration purposes, though I implemented a name-based filter on the discovery screen and automatic reconnection to the previously connected device.
+  - Improvements: connection state indicators, and clearer empty/error states.
 
 - Testing
   - No automated tests.
