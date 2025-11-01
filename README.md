@@ -48,6 +48,10 @@ Developed and tested with: Xcode 26, iOS 26, macOS 26.
 - Combine usage
   - ViewModels expose `@Published` state for device lists, selection, and connection status.
   - Repository emits discovery/connection updates via Combine publishers that ViewModels subscribe to.
+  - Subjects used for state streams (Unidirectional streams):
+    - `CurrentValueSubject` is used for "stateful" streams (e.g., power state, scanning flag, current connection state, device details, discovered devices). It always holds and replays the latest value to new subscribers, which is ideal for UI that can appear/disappear and still needs the current snapshot immediately on subscribe.
+    - `PassthroughSubject` is used for transient, event-like data (e.g., inbound text messages). It does not retain the last value, preventing accidental replay of stale, one-off events when a view re-subscribes.
+  - Why this is good: pairing `CurrentValueSubject` for durable state with `PassthroughSubject` for ephemeral events provides clear semantics, avoids missing the latest state on new subscriptions, and prevents double-handling of one-off events.
   - SwiftUI views react to state changes automatically.
 - SwiftUI
   - Declarative UI with simple, focused screens: discovery list, details/interaction, splash/init.
@@ -190,7 +194,7 @@ Key notes
 - RX is the characteristic the central writes to (Peripheral receives data).
 - TX is the characteristic the central subscribes to (Peripheral notifies data).
 - The sample uses Write Without Response for throughput and TX notifications for inbound data.
-- Preferred service is Nordic UART Service (NUS) to keep the demo simple and familiar.
+- Preferred service is Nordic UART Service (NUS) to keep the demo simple.
 
 ## Known GATT service and characteristic UUIDs
 
