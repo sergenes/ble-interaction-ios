@@ -65,6 +65,7 @@ final class BluetoothRepository: NSObject {
             var isConnectable: Bool?
             var lastLocalName: String?
             var preferredServiceUUID: UUID?
+            var lastSeen: Date
         }
     // Parsed discovery container to keep didDiscover readable
     private struct DiscoveryInfo {
@@ -77,6 +78,9 @@ final class BluetoothRepository: NSObject {
     private var peripherals: [UUID: PeripheralEntry] = [:]
     private var isScanning: Bool = false
     private var shouldScan: Bool = false
+    
+    // Stale discovery pruning
+    private let staleTTL: TimeInterval = 6.0
     
     // Connection
     private var connectedPeripheral: CBPeripheral?
@@ -140,7 +144,14 @@ final class BluetoothRepository: NSObject {
         // Try to retrieve from system cache
         let found = central.retrievePeripherals(withIdentifiers: [identifier])
         if let peripheral = found.first {
-            peripherals[identifier] = PeripheralEntry(peripheral: peripheral, lastRSSI: nil, isConnectable: nil, lastLocalName: nil, preferredServiceUUID: nil)
+            peripherals[identifier] = PeripheralEntry(
+                peripheral: peripheral,
+                lastRSSI: nil,
+                isConnectable: nil,
+                lastLocalName: nil,
+                preferredServiceUUID: nil,
+                lastSeen: Date()
+            )
             stopScanning()
             let name = peripheral.name ?? "Unknown"
             prepareAndConnect(peripheral: peripheral,
@@ -248,7 +259,6 @@ final class BluetoothRepository: NSObject {
     
     // MARK: - Helpers
     /// Resets local connection-related state without emitting a connection state event.
-    /// Use in final failure and disconnect paths after clearing CBPeripheral.delegate externally when needed.
     private func cleanState() {
         connectedPeripheral = nil
         notifyCharacteristic = nil
@@ -256,6 +266,7 @@ final class BluetoothRepository: NSObject {
         handshakeSent = false
         deviceDetailSubject.send(nil)
     }
+    
     private func publishState(for cbState: CBManagerState) {
         let state = BluetoothMappers.powerState(from: cbState)
         powerStateSubject.send(state)
@@ -271,7 +282,14 @@ final class BluetoothRepository: NSObject {
     }
 
     private func emitDevices() {
-        let models: [BluetoothDevice] = peripherals.values.map { entry in
+        let now = Date()
+        let cutoff = now.addingTimeInterval(-staleTTL)
+        let connectedId = connectedPeripheral?.identifier
+        let filteredEntries = peripherals.values.filter { entry in
+            if let connectedId, entry.peripheral.identifier == connectedId { return true }
+            return entry.lastSeen >= cutoff
+        }
+        let models: [BluetoothDevice] = filteredEntries.map { entry in
             let advName = entry.lastLocalName?.trimmingCharacters(in: .whitespacesAndNewlines)
             let name = (advName?.isEmpty == false ? advName! : nil)
                 ?? entry.peripheral.name
@@ -318,12 +336,20 @@ final class BluetoothRepository: NSObject {
     }
 
     private func upsertPeripheralEntry(for peripheral: CBPeripheral, with info: DiscoveryInfo) {
-        var entry = peripherals[peripheral.identifier] ?? PeripheralEntry(peripheral: peripheral, lastRSSI: nil, isConnectable: nil, lastLocalName: nil, preferredServiceUUID: nil)
+        var entry = peripherals[peripheral.identifier] ?? PeripheralEntry(
+            peripheral: peripheral,
+            lastRSSI: nil,
+            isConnectable: nil,
+            lastLocalName: nil,
+            preferredServiceUUID: nil,
+            lastSeen: Date()
+        )
         entry.lastRSSI = info.rssi
         entry.isConnectable = info.isConnectable
         if let name = info.advName, !name.isEmpty {
             entry.lastLocalName = name
         }
+        entry.lastSeen = Date()
         // Capture advertised service UUIDs; prefer NUS when present, else first
         let cbuuids = info.advertisedServiceUUIDs
         if !cbuuids.isEmpty {
