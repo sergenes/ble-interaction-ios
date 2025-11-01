@@ -61,6 +61,14 @@ Developed and tested with: Xcode 26, iOS 26, macOS 26.
   - iOS app fails to connect to `QDevice1`, but successfully connects and interacts when the device with the Mac's public name is selected.
   - Workarounds: select the device entry that shows the Mac's public name.
 
+- TextProtocolParser scope and thread-safety
+  - Parser currently runs on a single queue and keeps internal mutable state; not thread-safe if called concurrently.
+  - Improvement: Could be split into dedicated sub-parsers (e.g., image/control) and/or made actor/serial-queue based for safety.
+
+- BluetoothRepository size and separation of concerns
+  - The repository is intentionally a single-file demo but has grown long (discovery + connection + GATT I/O).
+  - Improvement: split into focused components (e.g., DiscoveryService, ConnectionManager, IOChannel/TextProtocol) or at least into extensions per area to reduce cognitive load.
+
 - Permissions and privacy prompts
   - BLE requires Bluetooth permission. On first launch, iOS prompts appear; denial blocks functionality.
   - Improvement: add a dedicated permissions screen with rationale and links to Settings if permission is denied.
