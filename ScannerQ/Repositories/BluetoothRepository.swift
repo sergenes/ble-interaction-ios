@@ -11,6 +11,28 @@ import CommonLibrary
 import CoreBluetooth
 import OSLog
 
+private struct PeripheralEntry {
+    let peripheral: CBPeripheral
+    var lastRSSI: Int?
+    var isConnectable: Bool?
+    var lastLocalName: String?
+    var preferredServiceUUID: UUID?
+    var lastSeen: Date
+}
+
+extension CBPeripheral {
+   fileprivate func toPeripheralEntry() -> PeripheralEntry {
+        PeripheralEntry(
+            peripheral: self,
+            lastRSSI: nil,
+            isConnectable: nil,
+            lastLocalName: nil,
+            preferredServiceUUID: nil,
+            lastSeen: Date()
+        )
+    }
+}
+
 @MainActor
 final class BluetoothRepository: NSObject {
     // MARK: - Public Publishers
@@ -59,14 +81,6 @@ final class BluetoothRepository: NSObject {
     
     // MARK: - Private state
     private var central: CBCentralManager!
-    private struct PeripheralEntry {
-            let peripheral: CBPeripheral
-            var lastRSSI: Int?
-            var isConnectable: Bool?
-            var lastLocalName: String?
-            var preferredServiceUUID: UUID?
-            var lastSeen: Date
-        }
     // Parsed discovery container to keep didDiscover readable
     private struct DiscoveryInfo {
         let rssi: Int
@@ -144,14 +158,7 @@ final class BluetoothRepository: NSObject {
         // Try to retrieve from system cache
         let found = central.retrievePeripherals(withIdentifiers: [identifier])
         if let peripheral = found.first {
-            peripherals[identifier] = PeripheralEntry(
-                peripheral: peripheral,
-                lastRSSI: nil,
-                isConnectable: nil,
-                lastLocalName: nil,
-                preferredServiceUUID: nil,
-                lastSeen: Date()
-            )
+            peripherals[identifier] = peripheral.toPeripheralEntry()
             stopScanning()
             let name = peripheral.name ?? "Unknown"
             prepareAndConnect(peripheral: peripheral,
@@ -336,14 +343,7 @@ final class BluetoothRepository: NSObject {
     }
 
     private func upsertPeripheralEntry(for peripheral: CBPeripheral, with info: DiscoveryInfo) {
-        var entry = peripherals[peripheral.identifier] ?? PeripheralEntry(
-            peripheral: peripheral,
-            lastRSSI: nil,
-            isConnectable: nil,
-            lastLocalName: nil,
-            preferredServiceUUID: nil,
-            lastSeen: Date()
-        )
+        var entry = peripherals[peripheral.identifier] ?? peripheral.toPeripheralEntry()
         entry.lastRSSI = info.rssi
         entry.isConnectable = info.isConnectable
         if let name = info.advName, !name.isEmpty {
