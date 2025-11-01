@@ -30,8 +30,6 @@ public enum Gatt {
         public static var nusRXUUID: CBUUID { CBUUID(string: "6E400002-B5A3-F393-E0A9-E50E24DCCA9E") } // write
         // TX (Peripheral transmits to Central) -> Central subscribes (notify) to this characteristic
         public static var nusTXUUID: CBUUID { CBUUID(string: "6E400003-B5A3-F393-E0A9-E50E24DCCA9E") } // notify
-        // Backwards-compat alias for older references
-        public static var notify: CBUUID { nusTXUUID }
     }
 }
 
