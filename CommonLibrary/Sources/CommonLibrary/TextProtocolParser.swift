@@ -58,49 +58,68 @@ public final class TextProtocolParser {
     public func feed(line raw: String) {
         let line = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !line.isEmpty else { return }
-
+        
+        // 1) If currently receiving image data, handle chunk or end marker
         if receivingImage {
-            if line == TextProtocol.imgEnd {
-                completeImage()
-                return
-            }
-            // Accumulate base64 chunk
-            if base64Buffer.count + line.count <= maxBase64Chars {
-                base64Buffer += line
-                if expectedBytes > 0 {
-                    // Rough estimate: base64 expands data by ~33%
-                    let estimatedDecoded = Int(Double(base64Buffer.count) * 0.75)
-                    delegate?.didReceiveImageProgress(bytesEstimated: estimatedDecoded, expectedBytes: expectedBytes)
-                }
-            } else {
-                failImage(reason: "too_large")
-            }
+            processImageChunkOrEnd(line)
             return
         }
-
-        if line.hasPrefix(TextProtocol.imgBegin + " ") {
-            // parse: IMG_BEGIN <filename> <bytes>
-            let parts = line.split(separator: " ")
-            if parts.count >= 3 {
-                filename = String(parts[1])
-                let bytesStr = String(parts[2])
-                expectedBytes = Int(bytesStr) ?? 0
-                base64Buffer = ""
-                receivingImage = true
-                delegate?.didStartImage(filename: filename, expectedBytes: expectedBytes)
-            } else {
-                delegate?.didFailImage(reason: "begin_bad_format")
-            }
+        
+        // 2) Check for image begin line
+        if processImageBegin(line) {
             return
         }
-
+        
+        // 3) Fallback to regular or error line processing
+        processRegularOrError(line)
+    }
+    
+    // MARK: - Split handlers (extracted from feed)
+    /// Handles image chunk accumulation and end marker while in image-receiving mode
+    private func processImageChunkOrEnd(_ line: String) {
+        if line == TextProtocol.imgEnd {
+            completeImage()
+            return
+        }
+        // Accumulate base64 chunk
+        if base64Buffer.count + line.count <= maxBase64Chars {
+            base64Buffer += line
+            if expectedBytes > 0 {
+                // Rough estimate: base64 expands data by ~33%
+                let estimatedDecoded = Int(Double(base64Buffer.count) * 0.75)
+                delegate?.didReceiveImageProgress(bytesEstimated: estimatedDecoded, expectedBytes: expectedBytes)
+            }
+        } else {
+            failImage(reason: "too_large")
+        }
+    }
+    
+    /// Attempts to parse an IMG_BEGIN line. Returns true if handled.
+    private func processImageBegin(_ line: String) -> Bool {
+        guard line.hasPrefix(TextProtocol.imgBegin) else { return false }
+        // parse: IMG_BEGIN <filename> <bytes>
+        let parts = line.split(separator: " ")
+        if parts.count >= 3 {
+            filename = String(parts[1])
+            let bytesStr = String(parts[2])
+            expectedBytes = Int(bytesStr) ?? 0
+            base64Buffer = ""
+            receivingImage = true
+            delegate?.didStartImage(filename: filename, expectedBytes: expectedBytes)
+        } else {
+            delegate?.didFailImage(reason: "begin_bad_format")
+        }
+        return true
+    }
+    
+    /// Handles regular text lines and IMG_ERROR passthrough when not receiving an image
+    private func processRegularOrError(_ line: String) {
         if line.hasPrefix(TextProtocol.imgError) {
             // Pass through error line and reset state just in case
             delegate?.didReceiveRegularMessage(line)
             resetImageState()
             return
         }
-
         // Default: regular message
         delegate?.didReceiveRegularMessage(line)
     }

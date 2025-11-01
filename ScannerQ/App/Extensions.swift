@@ -27,7 +27,7 @@ extension BluetoothDevice {
                 id: UUID(uuidString: "A91F6D2C-7C4E-4A42-B9E4-3A8398C7F0D0")!,
                 name: "Tile Tracker",
                 rssi: -60, // Moderate signal
-                isConnectable: false, // Not connectable (e.g., just broadcasting)
+                isConnectable: false  // (just broadcasting)
             )
         ]
     }
