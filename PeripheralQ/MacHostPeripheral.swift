@@ -10,6 +10,7 @@ import Foundation
 import CoreBluetooth
 import Combine
 import CommonLibrary
+import OSLog
 
 @MainActor
 final class MacHostPeripheral: NSObject {
@@ -33,7 +34,7 @@ final class MacHostPeripheral: NSObject {
     // Config
     struct Config: Equatable {
         var localName: String
-        var serviceUUID: UUID
+        var serviceUUID: CBUUID
     }
     @Published private(set) var config: Config
 
@@ -54,7 +55,7 @@ final class MacHostPeripheral: NSObject {
 
     override init() {
         // Default config
-        self.config = Config(localName: "QDevice1", serviceUUID: Gatt.Service.nusServiceUUID.toUUID())
+        self.config = Config(localName: "QDevice1", serviceUUID: Gatt.Service.nusServiceUUID)
         super.init()
         self.pm = CBPeripheralManager(delegate: self, queue: .main)
     }
@@ -98,7 +99,7 @@ final class MacHostPeripheral: NSObject {
     // MARK: - Internals
     private func setupGattIfNeeded() {
         guard service == nil else { return }
-        let s = CBMutableService(type: CBUUID(nsuuid: config.serviceUUID), primary: true)
+        let s = CBMutableService(type: config.serviceUUID, primary: true)
         let rx = CBMutableCharacteristic(type: Gatt.Characteristic.nusRXUUID, properties: [.write, .writeWithoutResponse], value: nil, permissions: [.writeable])
         let tx = CBMutableCharacteristic(type: Gatt.Characteristic.nusTXUUID, properties: [.notify], value: nil, permissions: [.readable])
         s.characteristics = [rx, tx]
@@ -114,11 +115,10 @@ final class MacHostPeripheral: NSObject {
         guard pm.state == .poweredOn else { return }
         guard isServiceAdded, service != nil else { return }
         let adv: [String: Any] = [
-            CBAdvertisementDataServiceUUIDsKey: [CBUUID(nsuuid: config.serviceUUID)],
+            CBAdvertisementDataServiceUUIDsKey: [config.serviceUUID],
             CBAdvertisementDataLocalNameKey: config.localName
         ]
-        // macOS CoreBluetooth generally does not allow Manufacturer Data in advertising; omit it to avoid warnings
-        // and to keep the payload within the small legacy AD budget. We rely on Local Name + Service UUID only.
+        Self.log.info("startAdvertising: \(self.config.serviceUUID.uuidString)\n Name: \(self.config.localName)\n \(self.service)")
         pm.startAdvertising(adv)
         state = .advertising
     }
@@ -290,4 +290,9 @@ extension MacHostPeripheral: CBPeripheralManagerDelegate {
     func peripheralManagerIsReady(toUpdateSubscribers peripheral: CBPeripheralManager) {
         flushQueue()
     }
+}
+
+
+extension MacHostPeripheral {
+    static let log = Logger(subsystem: "com.answers.assesment", category: "\(MacHostPeripheral.self)")
 }

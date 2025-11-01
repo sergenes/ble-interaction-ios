@@ -53,7 +53,7 @@ final class MacHostViewModel: ObservableObject {
         // a 128-bit Service UUID, which leaves only a small budget for Local Name. Keep it
         // conservative to improve reliability on macOS by truncating the Local Name to 12 UTF-8 bytes.
         let safeName = truncateToUTF8Bytes(localName, maxBytes: 12)
-        let cfg = MacHostPeripheral.Config(localName: safeName, serviceUUID: Gatt.Service.nusServiceUUID.toUUID())
+        let cfg = MacHostPeripheral.Config(localName: safeName, serviceUUID: Gatt.Service.nusServiceUUID)
         host.update(config: cfg)
     }
 
