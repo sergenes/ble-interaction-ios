@@ -66,6 +66,14 @@ final class BluetoothRepository: NSObject {
             var lastLocalName: String?
             var preferredServiceUUID: UUID?
         }
+    // Parsed discovery container to keep didDiscover readable
+    private struct DiscoveryInfo {
+        let rssi: Int
+        let isConnectable: Bool?
+        let advName: String?
+        let manufacturerData: Data
+        let advertisedServiceUUIDs: [CBUUID]
+    }
     private var peripherals: [UUID: PeripheralEntry] = [:]
     private var isScanning: Bool = false
     private var shouldScan: Bool = false
@@ -239,6 +247,15 @@ final class BluetoothRepository: NSObject {
     }
     
     // MARK: - Helpers
+    /// Resets local connection-related state without emitting a connection state event.
+    /// Use in final failure and disconnect paths after clearing CBPeripheral.delegate externally when needed.
+    private func cleanState() {
+        connectedPeripheral = nil
+        notifyCharacteristic = nil
+        writeCharacteristic = nil
+        handshakeSent = false
+        deviceDetailSubject.send(nil)
+    }
     private func publishState(for cbState: CBManagerState) {
         let state = BluetoothMappers.powerState(from: cbState)
         powerStateSubject.send(state)
@@ -268,17 +285,67 @@ final class BluetoothRepository: NSObject {
             )
         }
         // Sort by RSSI desc (strongest first), Unknowns last; then by name for stable order
-        let sorted = models.filter{ device in
-            device.rssi != nil && device.rssi! < 0
-        }.sorted { a, b in
-            switch (a.rssi, b.rssi) {
-            case let (ra?, rb?): return ra > rb
-            case (_?, nil): return true
-            case (nil, _?): return false
-            default: return a.name < b.name
+        let sorted = models.filter { device in
+            if let rssi = device.rssi {
+                return rssi < 0
+            }
+            return false
+        }
+        .sorted { a, b in
+            if let ra = a.rssi, let rb = b.rssi {
+                return ra > rb          // stronger signal first
+            } else {
+                return a.name < b.name  // fallback (theoretically never reached)
             }
         }
         devicesSubject.send(sorted)
+    }
+
+    // MARK: - Discovery helpers (split from didDiscover)
+    private func parseDiscoveryInfo(from advertisementData: [String: Any], rssi: NSNumber) -> DiscoveryInfo {
+        let isConnectable = (advertisementData[CBAdvertisementDataIsConnectable] as? NSNumber)?.boolValue
+        // Prefer CoreBluetooth-provided advertised local name when available
+        let advName = (advertisementData[CBAdvertisementDataLocalNameKey] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let manufacturerData = (advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data) ?? Data()
+        let serviceUUIDs = (advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID]) ?? []
+        return DiscoveryInfo(
+            rssi: rssi.intValue,
+            isConnectable: isConnectable,
+            advName: (advName?.isEmpty == false ? advName! : nil),
+            manufacturerData: manufacturerData,
+            advertisedServiceUUIDs: serviceUUIDs
+        )
+    }
+
+    private func upsertPeripheralEntry(for peripheral: CBPeripheral, with info: DiscoveryInfo) {
+        var entry = peripherals[peripheral.identifier] ?? PeripheralEntry(peripheral: peripheral, lastRSSI: nil, isConnectable: nil, lastLocalName: nil, preferredServiceUUID: nil)
+        entry.lastRSSI = info.rssi
+        entry.isConnectable = info.isConnectable
+        if let name = info.advName, !name.isEmpty {
+            entry.lastLocalName = name
+        }
+        // Capture advertised service UUIDs; prefer NUS when present, else first
+        let cbuuids = info.advertisedServiceUUIDs
+        if !cbuuids.isEmpty {
+            if cbuuids.contains(Gatt.Service.nusServiceUUID) {
+                entry.preferredServiceUUID = UUID(uuidString: Gatt.Service.nusServiceUUID.uuidString)
+            } else if let first = cbuuids.first {
+                entry.preferredServiceUUID = UUID(uuidString: first.uuidString)
+            }
+        }
+        peripherals[peripheral.identifier] = entry
+        // Optional manufacturer data logging can be added here if needed
+        if !info.manufacturerData.isEmpty {
+            // Self.log.info("Manufacturer Data: \(info.manufacturerData.manufacturerSummary())")
+        }
+    }
+
+    private func handleAutoConnectIfNeeded(for peripheral: CBPeripheral) {
+        // Auto-connect if this is the target we're waiting for
+        if let target = autoConnectTargetId, target == peripheral.identifier {
+            autoConnectTargetId = nil
+            connect(to: target)
+        }
     }
 
     private func updateDeviceDetail(services: [CBService]?) {
@@ -308,35 +375,14 @@ extension BluetoothRepository: CBCentralManagerDelegate {
 
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral,
                         advertisementData: [String : Any], rssi RSSI: NSNumber) {
-        let isConnectable = (advertisementData[CBAdvertisementDataIsConnectable] as? NSNumber)?.boolValue
-        // Prefer CoreBluetooth-provided advertised local name when available
-        let advName = advertisementData[CBAdvertisementDataLocalNameKey] as? String
-        let manufacturerData = (advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data) ?? Data()
-        if !manufacturerData.isEmpty {
-            // Self.log.info("Manufacturer Data: \(manufacturerData.manufacturerSummary())")
-        }
-        var entry = peripherals[peripheral.identifier] ?? PeripheralEntry(peripheral: peripheral, lastRSSI: nil, isConnectable: nil, lastLocalName: nil, preferredServiceUUID: nil)
-        entry.lastRSSI = RSSI.intValue
-        entry.isConnectable = isConnectable
-        // Prefer last seen advertised local name when present
-        if let name = advName, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            entry.lastLocalName = name
-        }
-        // Capture advertised service UUIDs; prefer NUS when present, else first
-        if let cbuuids = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID], !cbuuids.isEmpty {
-            if cbuuids.contains(Gatt.Service.nusServiceUUID) {
-                entry.preferredServiceUUID = UUID(uuidString: Gatt.Service.nusServiceUUID.uuidString)
-            } else if let first = cbuuids.first {
-                entry.preferredServiceUUID = UUID(uuidString: first.uuidString)
-            }
-        }
-        peripherals[peripheral.identifier] = entry
+        // Parse and normalize raw discovery inputs
+        let info = parseDiscoveryInfo(from: advertisementData, rssi: RSSI)
+        // Upsert/refresh our cached entry for this peripheral
+        upsertPeripheralEntry(for: peripheral, with: info)
+        // Notify UI about updated device list
         emitDevices()
-        // Auto-connect if this is the target we're waiting for
-        if let target = autoConnectTargetId, target == peripheral.identifier {
-            autoConnectTargetId = nil
-            connect(to: target)
-        }
+        // Handle pending auto-connect intent if this is the target
+        handleAutoConnectIfNeeded(for: peripheral)
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
@@ -360,11 +406,7 @@ extension BluetoothRepository: CBCentralManagerDelegate {
         } else {
             // Final failure: clean local state to allow future reconnects
             connectedPeripheral?.delegate = nil
-            connectedPeripheral = nil
-            notifyCharacteristic = nil
-            writeCharacteristic = nil
-            handshakeSent = false
-            deviceDetailSubject.send(nil)
+            cleanState()
             connectionStateSubject.send(.failed(error ?? NSError(domain: "BT", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to connect"])) )
         }
     }
@@ -372,12 +414,8 @@ extension BluetoothRepository: CBCentralManagerDelegate {
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         // Clean up all state so we can reconnect cleanly later without restarting the app
         peripheral.delegate = nil
-        connectedPeripheral = nil
-        notifyCharacteristic = nil
-        writeCharacteristic = nil
-        handshakeSent = false
         didRetryConnect = false
-        deviceDetailSubject.send(nil)
+        cleanState()
         connectionStateSubject.send(.disconnected(error))
     }
 }
