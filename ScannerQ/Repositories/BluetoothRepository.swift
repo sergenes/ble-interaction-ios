@@ -42,7 +42,7 @@ final class BluetoothRepository: NSObject {
     private let deviceDetailSubject = CurrentValueSubject<DeviceDetail?, Never>(nil)
     private let inboundTextSubject = PassthroughSubject<String, Never>()
     private let isScanningSubject = CurrentValueSubject<Bool, Never>(false)
-    
+        
     var devicesPublisher: AnyPublisher<[BluetoothDevice], Never> {
         devicesSubject
             .receive(on: DispatchQueue.main)
@@ -514,7 +514,7 @@ extension BluetoothRepository: CBPeripheralDelegate {
         let string: String
         if let s = String(data: data, encoding: .utf8), !s.isEmpty {
             string = s
-        } else {
+        } else { // for case it is not .utf8 (binary - so we can analyze it)
             let hex = data.map { String(format: "%02X", $0) }.joined()
             string = "0x" + (hex.count > 512 ? String(hex.prefix(512)) + "…" : hex)
         }

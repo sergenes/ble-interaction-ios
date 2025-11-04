@@ -18,6 +18,19 @@ final class DiscoveryViewModel: ObservableObject {
     @Published private(set) var powerState: BluetoothPowerState = .unknown
     @Published var isScanning: Bool = false
     
+    @Published var refreshInterval: TimeInterval = 10
+    
+    let refreshValues: [TimeInterval] = [0.0, 1.0, 5.0, 10.0]
+    
+    func updateRefreshInterval(_ refreshInterval: TimeInterval) {
+        self.refreshInterval = refreshInterval
+        devicesCancellable?.cancel()
+        devicesCancellable = repository?.devicesPublisher
+            .throttle(for: .seconds(self.refreshInterval), scheduler: RunLoop.main, latest: true)
+            .sink { [weak self] in self?.devices = $0 }
+    }
+    
+    
     private var cancellables = Set<AnyCancellable>()
     private var devicesCancellable: AnyCancellable?
     
@@ -31,6 +44,7 @@ final class DiscoveryViewModel: ObservableObject {
     private func bind() {
         // Live updates: subscribe directly to devices stream
         devicesCancellable = repository?.devicesPublisher
+            .throttle(for: .seconds(self.refreshInterval), scheduler: RunLoop.main, latest: true)
             .sink { [weak self] in self?.devices = $0 }
 
         // Power state: reflect only, scanning decisions are owned by Repository

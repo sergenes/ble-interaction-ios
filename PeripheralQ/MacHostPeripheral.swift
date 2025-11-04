@@ -266,6 +266,8 @@ extension MacHostPeripheral: CBPeripheralManagerDelegate {
     }
 
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic) {
+        let mtu = central.maximumUpdateValueLength  // <— This is available!
+        print("Central MTU: \(mtu) bytes")
         if !subscribedCentrals.contains(where: { $0.identifier == central.identifier }) {
             subscribedCentrals.append(central)
         }

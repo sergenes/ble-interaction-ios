@@ -59,6 +59,20 @@ struct DiscoveryScreenView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .toolbar {
+            
+            ToolbarItem(placement: .topBarLeading) {
+                Menu {
+                    ForEach(viewModel.refreshValues, id: \.self) { value in
+                        if value == 0 {
+                            Button("Live (no throttle)") { viewModel.refreshInterval = 0 }
+                        } else {
+                            Button("Every: \(String(format: "%.1f", value))s") { viewModel.updateRefreshInterval(value) }
+                        }
+                    }
+                } label: {
+                    Text("Refresh: \(refreshLabel(viewModel.refreshInterval))")
+                }.disabled(viewModel.isScanning)
+            }
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button(action: { viewModel.toggleScanning() }) {
                     HStack(spacing: 6) {
@@ -75,6 +89,17 @@ struct DiscoveryScreenView: View {
         }
         .onDisappear {
             viewModel.onDisappear()
+        }
+    }
+    
+    private func refreshLabel(_ interval: TimeInterval) -> String {
+        switch interval {
+        case 0: return "Live"
+        case 0.5: return "0.5s"
+        case 1.0: return "1s"
+        case 5.0: return "5s"
+        default:
+            return String(format: "%.2gs", interval)
         }
     }
 }
