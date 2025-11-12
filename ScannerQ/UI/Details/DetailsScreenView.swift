@@ -53,8 +53,8 @@ struct DetailsScreenView: View {
         .onAppear {
             viewModel.setup(repository: deps.repository)
             viewModel.onAppear()
+            BackgroundCommandHandler.shared.registerBackgroundTask()
         }
-        .onDisappear { viewModel.onDisappear() }
         .onChange(of: viewModel.detail) { _, newDetail in
             if let d = newDetail {
                 lastDeviceId = d.device.id.uuidString

@@ -147,6 +147,18 @@ extension DetailsViewModel: TextMessageHandler {
     func didReceiveRegularMessage(_ line: String) {
         let truncated = line.truncated(to: 500)
         self.messages.append(truncated)
+        
+        // Only notify when the app is not active (background / inactive)
+        let appState = UIApplication.shared.applicationState
+        if appState != .active {
+            let title = detail?.device.name ?? "ScannerQ"
+            NotificationManager.shared.scheduleNotification(
+                title: title,
+                body: truncated,
+                delay: 1,
+                userInfo: ["command": "inbound_text", "text": truncated]
+            )
+        }
     }
 
     func didStartImage(filename: String, expectedBytes: Int) {
